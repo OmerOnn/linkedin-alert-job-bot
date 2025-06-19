@@ -81,14 +81,15 @@ schedule:
   - cron: '*/30 * * * *'  # every 30 minutes
 
 ---
-
 ## 🗂️ File Structure
+
+```
 📁 .github/workflows/
    └── run.yml        # GitHub Actions workflow config
 
-📄 main.py            # Core Python script
-📄 requirements.txt   # Python dependencies
-📄 README.md          # You are here
-
+📄 main.py            # Core Python script  
+📄 requirements.txt   # Python dependencies  
+📄 README.md          # You are here  
+```
 
 Built with ❤️ to help students and developers find job opportunities instantly.
