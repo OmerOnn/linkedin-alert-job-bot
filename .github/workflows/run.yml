@@ -2,7 +2,7 @@ name: Run Email Checker Every 5 Minutes
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 
 jobs:
