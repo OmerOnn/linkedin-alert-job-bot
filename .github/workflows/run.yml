@@ -36,5 +36,6 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}              # Gmail username from GitHub Secrets
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}              # Gmail app password from GitHub Secrets
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}  # Telegram bot token from GitHub Secrets
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }} # Telegram chatID from GitHub Secrets
         run: |
           python main.py  # Run the email checking Python script
