@@ -1,3 +1,2 @@
 python-dotenv
 requests
-python-telegram-bot==20.8
