@@ -75,7 +75,7 @@ def check_emails():
             body = extract_body(msg)
 
             for chat_id in TELEGRAM_CHAT_IDS:
-                if any(kw.lower() in subject.lower() or kw.lower() in body.lower() for kw in KEYWORDS):
+                if if subject.strip() == "LinkedIn Job Alerts" and any(kw.lower() in body.lower() for kw in KEYWORDS):
                     links = re.findall(r'https://www\.linkedin\.com/jobs/view/\S+', body)
                     link_text = f"\n🔗 Job link: {links[0]}" if links else ""
                     message = f"📬 New job email matched your keywords!\nSubject: {subject}{link_text}"
