@@ -4,6 +4,7 @@ import os
 import re
 import requests
 from dotenv import load_dotenv
+from datetime import datetime, timedelta, timezone
 from email.message import Message
 
 load_dotenv()
@@ -40,10 +41,6 @@ KEYWORDS: list[str] = [
 def send_telegram_message(chat_id: str, message: str) -> None:
     """
     Sends a Telegram message to a specific chat ID using the bot token.
-
-    Args:
-        chat_id (str): The recipient's Telegram chat ID.
-        message (str): The message text to send.
     """
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {"chat_id": chat_id, "text": message}
@@ -52,12 +49,6 @@ def send_telegram_message(chat_id: str, message: str) -> None:
 def extract_body(msg: Message) -> str:
     """
     Extracts the plain text body from an email message.
-
-    Args:
-        msg (Message): An email.message.Message object.
-
-    Returns:
-        str: The decoded plain text body of the email.
     """
     if msg.is_multipart():
         for part in msg.walk():
@@ -71,14 +62,16 @@ def extract_body(msg: Message) -> str:
 
 def check_emails() -> None:
     """
-    Connects to the Gmail inbox and checks for unread messages with a subject "LinkedIn Job Alerts".
-    If the email body contains any of the specified keywords, it sends a Telegram notification.
+    Connects to the Gmail inbox and checks unread messages.
+    If the subject is "LinkedIn Job Alerts" and the body contains relevant keywords,
+    it sends a Telegram message — only for emails received in the last hour.
     """
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
 
+        # Get all UNSEEN emails (we'll filter time in Python)
         result, data = mail.search(None, "UNSEEN")
         if result != "OK":
             return
@@ -90,6 +83,14 @@ def check_emails() -> None:
 
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
+
+            # Parse email timestamp
+            date_tuple = email.utils.parsedate_tz(msg["Date"])
+            if date_tuple:
+                msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
+                if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=1):
+                    continue  # skip if older than 1 hour
+
             subject = msg["subject"] or ""
             body = extract_body(msg)
 
