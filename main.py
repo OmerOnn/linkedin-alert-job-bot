@@ -4,15 +4,16 @@ import os
 import re
 import requests
 from dotenv import load_dotenv
+from email.message import Message
 
 load_dotenv()
 
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+EMAIL_USER: str = os.getenv("EMAIL_USER", "")
+EMAIL_PASS: str = os.getenv("EMAIL_PASS", "")
+TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_IDS: list[str] = ["1111468747"]  # Replace with your actual chat ID
 
-# Hardcoded keywords and Telegram chat IDs
-KEYWORDS = [
+KEYWORDS: list[str] = [
     "student position",
     "intern",
     "internship",
@@ -36,14 +37,28 @@ KEYWORDS = [
     "סטודנט"
 ]
 
-TELEGRAM_CHAT_IDS = ["123456789"]  # <-- Replace with your actual chat ID
+def send_telegram_message(chat_id: str, message: str) -> None:
+    """
+    Sends a Telegram message to a specific chat ID using the bot token.
 
-def send_telegram_message(chat_id, message):
+    Args:
+        chat_id (str): The recipient's Telegram chat ID.
+        message (str): The message text to send.
+    """
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {"chat_id": chat_id, "text": message}
     requests.post(url, data=data)
 
-def extract_body(msg):
+def extract_body(msg: Message) -> str:
+    """
+    Extracts the plain text body from an email message.
+
+    Args:
+        msg (Message): An email.message.Message object.
+
+    Returns:
+        str: The decoded plain text body of the email.
+    """
     if msg.is_multipart():
         for part in msg.walk():
             content_type = part.get_content_type()
@@ -54,7 +69,11 @@ def extract_body(msg):
         return msg.get_payload(decode=True).decode(errors="ignore")
     return ""
 
-def check_emails():
+def check_emails() -> None:
+    """
+    Connects to the Gmail inbox and checks for unread messages with a subject "LinkedIn Job Alerts".
+    If the email body contains any of the specified keywords, it sends a Telegram notification.
+    """
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(EMAIL_USER, EMAIL_PASS)
