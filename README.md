@@ -49,14 +49,14 @@ If you have 2-Step Verification enabled on your Gmail account:
    - It will respond with your Telegram ID → use it for `TELEGRAM_CHAT_ID`
 
 ---
-
 ## 💡 Example Telegram Message
 
-💼 New Internship Opportunity Detected!
-📝 Title: AI Research Intern
+```
+💼 New Internship Opportunity Detected!  
+📝 Title: AI Research Intern  
 🔗 https://www.linkedin.com/jobs/view/1234567890
+```
 
----
 
 ## 🔍 Keyword Matching
 
