@@ -1,6 +1,0 @@
-services:
-  - type: worker
-    name: linkedin-email-alert-worker
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py & python main.py
