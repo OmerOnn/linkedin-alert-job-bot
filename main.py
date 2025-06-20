@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from email.message import Message
 
-# Load environment variables
+# Load environment variables from .env
 load_dotenv()
 EMAIL_USER = os.getenv("EMAIL_USER", "")
 EMAIL_PASS = os.getenv("EMAIL_PASS", "")
@@ -16,24 +16,21 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 KEYWORDS = [kw.strip().lower() for kw in os.getenv("KEYWORDS", "").split(",") if kw.strip()]
 
 def send_telegram_message(chat_id: str, message: str) -> None:
-    """Send a Telegram message using the bot."""
+    """Send a message via Telegram Bot API."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {"chat_id": chat_id, "text": message}
     requests.post(url, data=data)
 
-def extract_body(msg: Message) -> str:
-    """
-    Extract the HTML body from the email message.
-    Falls back to plain text if no HTML is found.
-    """
+def extract_bodies(msg: Message) -> tuple[str, str]:
+    """Extract both HTML and plain text bodies."""
     html_body = ""
     plain_body = ""
     if msg.is_multipart():
         for part in msg.walk():
-            content_type = part.get_content_type()
-            if content_type == "text/html":
+            ctype = part.get_content_type()
+            if ctype == "text/html":
                 html_body = part.get_payload(decode=True).decode(errors="ignore")
-            elif content_type == "text/plain":
+            elif ctype == "text/plain":
                 plain_body = part.get_payload(decode=True).decode(errors="ignore")
     else:
         payload = msg.get_payload(decode=True).decode(errors="ignore")
@@ -41,14 +38,9 @@ def extract_body(msg: Message) -> str:
             html_body = payload
         else:
             plain_body = payload
-
-    return html_body if html_body else plain_body
+    return html_body, plain_body
 
 def check_emails() -> None:
-    """
-    Check for new job alert emails and send Telegram messages.
-    Extract job title (from <a> link), company and location (from surrounding text).
-    """
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(EMAIL_USER, EMAIL_PASS)
@@ -73,31 +65,34 @@ def check_emails() -> None:
             if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=1):
                 continue
 
-            body = extract_body(msg)
-            if not any(kw in body.lower() for kw in KEYWORDS):
+            html_body, plain_body = extract_bodies(msg)
+            content_to_check = html_body or plain_body
+
+            if not any(kw in content_to_check.lower() for kw in KEYWORDS):
                 continue
 
             sent = False
-            for match in re.finditer(r'<a[^>]+href="(https://www\.linkedin\.com/jobs/[^"]+)"[^>]*>(.*?)</a>', body):
-                link = match.group(1).strip()
-                title = match.group(2).strip()
+            search_sources = [html_body, plain_body]
+            for body in search_sources:
+                for match in re.finditer(r'<a[^>]+href="(https://www\.linkedin\.com/jobs/[^\"]+)"[^>]*>(.*?)</a>', body):
+                    link = match.group(1).strip()
+                    title = match.group(2).strip()
+                    idx = body.find(match.group(0))
+                    surrounding = body[idx:idx + 500]
+                    company, location = "Unknown Company", "Unknown Location"
+                    match_info = re.search(r'([A-Za-z0-9&.,\- ]+)\s*\u00b7\s*([A-Za-z\- ()]+)', surrounding)
+                    if match_info:
+                        company, location = match_info.group(1).strip(), match_info.group(2).strip()
 
-                idx = body.find(match.group(0))
-                surrounding = body[idx:idx + 500]
-                company, location = "Unknown Company", "Unknown Location"
-                match_info = re.search(r'(?i)([A-Za-z0-9&.,\- ]+)\s*·\s*([A-Za-z\- ()]+)', surrounding)
-                if match_info:
-                    company, location = match_info.group(1).strip(), match_info.group(2).strip()
-
-                message = (
-                    f"💼 New Internship Opportunity Detected!\n"
-                    f"📝 Title: {title}\n"
-                    f"🏢 Company: {company}\n"
-                    f"📍 Location: {location}\n"
-                    f"🔗 {link}"
-                )
-                send_telegram_message(TELEGRAM_CHAT_ID, message)
-                sent = True
+                    message = (
+                        f"\U0001F4BC New Internship Opportunity Detected!\n"
+                        f"\U0001F4DD Title: {title}\n"
+                        f"\U0001F3E2 Company: {company}\n"
+                        f"\U0001F4CD Location: {location}\n"
+                        f"\U0001F517 {link}"
+                    )
+                    send_telegram_message(TELEGRAM_CHAT_ID, message)
+                    sent = True
 
             if sent:
                 mail.store(num, '+FLAGS', '\\Seen')
@@ -105,7 +100,7 @@ def check_emails() -> None:
         mail.logout()
 
     except Exception as e:
-        send_telegram_message(TELEGRAM_CHAT_ID, f"❗ Error while checking email: {str(e)}")
+        send_telegram_message(TELEGRAM_CHAT_ID, f"\u2757 Error while checking email: {str(e)}")
 
 if __name__ == "__main__":
     check_emails()
