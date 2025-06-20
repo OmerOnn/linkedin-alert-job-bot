@@ -64,18 +64,19 @@ def check_emails():
             soup = BeautifulSoup(html, "html.parser")
             sent = False
 
-            for p in soup.find_all("p"):
-                a_tag = p.find("a", href=True)
-                span = p.find("span")
-                if a_tag and "/jobs/view/" in a_tag["href"]:
+            for a_tag in soup.find_all("a", href=True):
+                if "/jobs/view/" in a_tag["href"]:
                     title = a_tag.get_text(strip=True)
                     link = a_tag["href"].strip()
                     company, location = "Unknown Company", "Unknown Location"
+            
+                    parent = a_tag.find_parent()
+                    span = parent.find("span") if parent else None
                     if span and "·" in span.text:
                         parts = span.text.strip().split("·")
                         if len(parts) == 2:
                             company, location = parts[0].strip(), parts[1].strip()
-
+            
                     if any(kw in title.lower() for kw in KEYWORDS):
                         message = (
                             f"💼 New Job Opportunity Detected!\n"
@@ -86,6 +87,7 @@ def check_emails():
                         )
                         send_telegram_message(TELEGRAM_CHAT_ID, message)
                         sent = True
+
 
             # Notify if no jobs found in the email
             if not sent:
