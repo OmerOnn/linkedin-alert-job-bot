@@ -2,7 +2,7 @@ name: Run Email Checker Every 30 Minutes  # Name of the GitHub Action workflow
 
 on:
   schedule:
-    - cron: '*/240 * * * *'  # Run the workflow every 30 minutes
+    - cron: '*/30 * * * *'  # Run the workflow every 30 minutes
   workflow_dispatch:         # Allow manual triggering from GitHub UI
 
 jobs:
