@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 
+# Load environment variables
 load_dotenv()
 EMAIL_USER = os.getenv("EMAIL_USER", "")
 EMAIL_PASS = os.getenv("EMAIL_PASS", "")
@@ -19,6 +20,7 @@ def send_telegram_message(chat_id: str, message: str) -> None:
     requests.post(url, data={"chat_id": chat_id, "text": message})
 
 def extract_html(msg) -> str:
+    """Extract HTML content from an email."""
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == "text/html":
@@ -34,6 +36,7 @@ def check_emails():
         mail.select("inbox")
         result, data = mail.search(None, "UNSEEN")
         if result != "OK":
+            send_telegram_message(TELEGRAM_CHAT_ID, "❗ IMAP search failed.")
             return
 
         for num in reversed(data[0].split()):
@@ -44,6 +47,7 @@ def check_emails():
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
+            # Check timestamp
             date_tuple = email.utils.parsedate_tz(msg["Date"])
             if not date_tuple:
                 continue
@@ -51,8 +55,10 @@ def check_emails():
             if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=1):
                 continue
 
+            subject = msg["Subject"] or "(no subject)"
             html = extract_html(msg)
             if not html:
+                send_telegram_message(TELEGRAM_CHAT_ID, f"❗ No HTML body found in email: {subject}")
                 continue
 
             soup = BeautifulSoup(html, "html.parser")
@@ -72,7 +78,7 @@ def check_emails():
 
                     if any(kw in title.lower() for kw in KEYWORDS):
                         message = (
-                            f"💼 New Internship Opportunity Detected!\n"
+                            f"💼 New Job Opportunity Detected!\n"
                             f"📝 Title: {title}\n"
                             f"🏢 Company: {company}\n"
                             f"📍 Location: {location}\n"
@@ -81,10 +87,14 @@ def check_emails():
                         send_telegram_message(TELEGRAM_CHAT_ID, message)
                         sent = True
 
-            if sent:
-                mail.store(num, '+FLAGS', '\\Seen')
+            # Notify if no jobs found in the email
+            if not sent:
+                send_telegram_message(TELEGRAM_CHAT_ID, f"❗ No jobs found in email: {subject}")
+            else:
+                mail.store(num, '+FLAGS', '\\Seen')  # Mark as read
 
         mail.logout()
+
     except Exception as e:
         send_telegram_message(TELEGRAM_CHAT_ID, f"❗ Error while checking email: {str(e)}")
 
