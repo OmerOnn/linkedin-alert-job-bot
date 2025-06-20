@@ -7,14 +7,14 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from email.message import Message
 
-# Load credentials from environment variables (.env locally / GitHub Secrets remotely)
+# Load environment variables (from .env locally or GitHub Secrets remotely)
 load_dotenv()
 EMAIL_USER = os.getenv("EMAIL_USER", "")
 EMAIL_PASS = os.getenv("EMAIL_PASS", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-# List of keywords to detect job relevance (English + Hebrew)
+# Keywords to detect relevant job content
 KEYWORDS = [
     "student position", "intern", "internship", "ai", "artificial intelligence",
     "machine learning", "deep learning", "computer vision", "natural language processing",
@@ -24,7 +24,7 @@ KEYWORDS = [
 ]
 
 def send_telegram_message(chat_id: str, message: str) -> None:
-    """Send a Telegram message to a specific user using a bot."""
+    """Send a message to Telegram bot."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {"chat_id": chat_id, "text": message}
     requests.post(url, data=data)
@@ -40,9 +40,8 @@ def extract_body(msg: Message) -> str:
     return ""
 
 def check_emails() -> None:
-    """Check unread emails from the last hour and send Telegram alerts if job-related links found."""
+    """Check unread emails from the last hour and alert if job listing found."""
     try:
-        # Connect to Gmail
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
@@ -59,7 +58,7 @@ def check_emails() -> None:
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
-            # Filter by email timestamp (only from last hour)
+            # Check if email is from the last hour
             date_tuple = email.utils.parsedate_tz(msg["Date"])
             if not date_tuple:
                 continue
@@ -67,42 +66,28 @@ def check_emails() -> None:
             if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=1):
                 continue
 
-            subject = msg["subject"] or ""
             body = extract_body(msg)
-
-            # Skip if no keywords match
             if not any(kw.lower() in body.lower() for kw in KEYWORDS):
                 continue
 
             lines = body.splitlines()
-            sent = False  # Flag: did we send any message for this email?
+            sent = False
 
             for i, line in enumerate(lines):
-                # Look for job links (any LinkedIn job link)
-                links = re.findall(r'https://www\.linkedin\.com/jobs/[^\s<>")]+', line)
-                if links:
-                    link = links[0]
+                match = re.search(r'<a[^>]+href="(https://www\.linkedin\.com/jobs/[^"]+)"[^>]*>(.*?)</a>', line)
+                if match:
+                    link = match.group(1).strip()
+                    title = match.group(2).strip() or "Unknown Position"
 
-                    # ✅ Try to extract title from HTML <a> if present
-                    title_match = re.search(r'<a [^>]*href="' + re.escape(link) + r'"[^>]*>(.*?)</a>', line)
-                    if title_match:
-                        title = title_match.group(1).strip()
-                    else:
-                        title = line.replace(link, "").strip() or "Unknown Position"
-
-                    # Extract company and location from next line if possible
                     company = "Unknown Company"
                     location = "Unknown Location"
                     if i + 1 < len(lines):
-                        info_line = lines[i + 1].strip()
-                        if "·" in info_line:
-                            parts = [p.strip() for p in info_line.split("·", 1)]
+                        next_line = lines[i + 1].strip()
+                        if "·" in next_line:
+                            parts = [p.strip() for p in next_line.split("\u00b7", 1)]
                             if len(parts) == 2:
                                 company, location = parts
-                            else:
-                                company = info_line
 
-                    # Compose and send the Telegram message
                     message = (
                         f"💼 New Internship Opportunity Detected!\n"
                         f"📝 Title: {title}\n"
@@ -114,7 +99,7 @@ def check_emails() -> None:
                     sent = True
 
             if sent:
-                mail.store(num, '+FLAGS', '\\Seen')  # Mark email as read only if message sent
+                mail.store(num, '+FLAGS', '\\Seen')  # Mark as read only if at least one job alert was sent
 
         mail.logout()
 
