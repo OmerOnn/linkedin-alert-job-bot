@@ -70,7 +70,7 @@ def check_emails() -> None:
             body = extract_body(msg)
 
             if any(kw.lower() in body.lower() for kw in KEYWORDS):
-                links = re.findall(r'https://www\.linkedin\.com/jobs/view/[^\s<>")]+', body)
+                links = re.findall(r'https://www\.linkedin\.com/jobs/[^\s<>")]+', body)
                 if not links:
                     continue  # Don't proceed without a valid job link
 
