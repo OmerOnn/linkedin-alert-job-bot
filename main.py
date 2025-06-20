@@ -65,7 +65,8 @@ def check_emails():
             sent = False
 
             for a_tag in soup.find_all("a", href=True):
-                if "/jobs/view/" in a_tag["href"]:
+                href = a_tag["href"]
+                if "linkedin.com/jobs" in href:
                     title = a_tag.get_text(strip=True)
                     link = a_tag["href"].strip()
                     company, location = "Unknown Company", "Unknown Location"
