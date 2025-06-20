@@ -1,41 +1,39 @@
-name: Run Email Checker Every 30 Minutes  # Name of the GitHub Action workflow
+name: Run Email Checker Manually
 
 on:
-  schedule:
-    - cron: '*/1000 * * * *'  # Run the workflow every 30 minutes
-  workflow_dispatch:         # Allow manual triggering from GitHub UI
+  workflow_dispatch:  # Manual run only via GitHub UI
 
 jobs:
   check-emails:
-    runs-on: ubuntu-latest   # Use the latest Ubuntu runner
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3  # Clone the repository content
+        uses: actions/checkout@v3
 
       - name: Set up Python
-        uses: actions/setup-python@v4  # Install specified Python version
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.10'       # Use Python 3.10
+          python-version: '3.10'
 
       - name: Cache pip dependencies
         uses: actions/cache@v3
         with:
-          path: ~/.cache/pip           # Cache pip install location
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}  # Unique key per OS and dependency file
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-pip-      # Restore if full match not found
+            ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip  # Upgrade pip itself
-          pip install -r requirements.txt      # Install Python dependencies
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Run email checker script
         env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}              # Gmail username from GitHub Secrets
-          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}              # Gmail app password from GitHub Secrets
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}  # Telegram bot token from GitHub Secrets
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }} # Telegram chatID from GitHub Secrets
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python main.py  # Run the email checking Python script
+          python main.py
