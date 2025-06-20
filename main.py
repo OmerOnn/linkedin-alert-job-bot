@@ -7,14 +7,14 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from email.message import Message
 
-# Load credentials from .env file or GitHub secrets
+# Load credentials from environment variables (.env locally / GitHub Secrets remotely)
 load_dotenv()
 EMAIL_USER = os.getenv("EMAIL_USER", "")
 EMAIL_PASS = os.getenv("EMAIL_PASS", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-# Keywords for job detection
+# List of keywords to detect job relevance (English + Hebrew)
 KEYWORDS = [
     "student position", "intern", "internship", "ai", "artificial intelligence",
     "machine learning", "deep learning", "computer vision", "natural language processing",
@@ -24,17 +24,13 @@ KEYWORDS = [
 ]
 
 def send_telegram_message(chat_id: str, message: str) -> None:
-    """
-    Send a formatted message to Telegram using a bot token and chat ID.
-    """
+    """Send a Telegram message to a specific user using a bot."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {"chat_id": chat_id, "text": message}
     requests.post(url, data=data)
 
 def extract_body(msg: Message) -> str:
-    """
-    Extract the plain text content from an email message.
-    """
+    """Extract plain text content from an email message object."""
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == "text/plain" and "attachment" not in str(part.get("Content-Disposition")):
@@ -44,17 +40,13 @@ def extract_body(msg: Message) -> str:
     return ""
 
 def check_emails() -> None:
-    """
-    Main logic: connect to Gmail, read unread emails from the last hour,
-    check for job opportunities, and notify via Telegram.
-    """
+    """Check unread emails from the last hour and send Telegram alerts if job-related links found."""
     try:
-        # Connect and login to Gmail via IMAP
+        # Connect to Gmail
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
 
-        # Get unread messages
         result, data = mail.search(None, "UNSEEN")
         if result != "OK":
             return
@@ -67,7 +59,7 @@ def check_emails() -> None:
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
-            # Skip emails older than 1 hour
+            # Filter by email timestamp (only from last hour)
             date_tuple = email.utils.parsedate_tz(msg["Date"])
             if not date_tuple:
                 continue
@@ -78,28 +70,27 @@ def check_emails() -> None:
             subject = msg["subject"] or ""
             body = extract_body(msg)
 
-            # Skip if body doesn't contain any relevant keyword
+            # Skip if no keywords match
             if not any(kw.lower() in body.lower() for kw in KEYWORDS):
                 continue
 
             lines = body.splitlines()
-            sent = False  # True if any message was sent
+            sent = False  # Flag: did we send any message for this email?
 
             for i, line in enumerate(lines):
-                # Match LinkedIn job links from all /jobs/ paths
+                # Look for job links (any LinkedIn job link)
                 links = re.findall(r'https://www\.linkedin\.com/jobs/[^\s<>")]+', line)
                 if links:
                     link = links[0]
 
-                    # Try to extract title from anchor tag if present
-                    title_match = re.search(r'<a [^>]*>(.*?)</a>', line)
+                    # ✅ Try to extract title from HTML <a> if present
+                    title_match = re.search(r'<a [^>]*href="' + re.escape(link) + r'"[^>]*>(.*?)</a>', line)
                     if title_match:
                         title = title_match.group(1).strip()
                     else:
-                        # Fallback: remove link from line and use the rest
                         title = line.replace(link, "").strip() or "Unknown Position"
 
-                    # Try to get company and location from next line
+                    # Extract company and location from next line if possible
                     company = "Unknown Company"
                     location = "Unknown Location"
                     if i + 1 < len(lines):
@@ -111,7 +102,7 @@ def check_emails() -> None:
                             else:
                                 company = info_line
 
-                    # Send Telegram message
+                    # Compose and send the Telegram message
                     message = (
                         f"💼 New Internship Opportunity Detected!\n"
                         f"📝 Title: {title}\n"
@@ -122,9 +113,8 @@ def check_emails() -> None:
                     send_telegram_message(TELEGRAM_CHAT_ID, message)
                     sent = True
 
-            # Mark email as read only if a message was sent
             if sent:
-                mail.store(num, '+FLAGS', '\\Seen')
+                mail.store(num, '+FLAGS', '\\Seen')  # Mark email as read only if message sent
 
         mail.logout()
 
