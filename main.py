@@ -66,9 +66,11 @@ def check_emails():
 
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag["href"]
-                if "linkedin.com/jobs" in href:
+                if "linkedin.com/jobs" in href and a_tag.find_parent("table"):
                     title = a_tag.get_text(strip=True)
-                    link = a_tag["href"].strip()
+                    if not title:
+                        title = a_tag.get("aria-label") or "Job Listing"
+                    link = href
                     company, location = "Unknown Company", "Unknown Location"
             
                     parent = a_tag.find_parent()
