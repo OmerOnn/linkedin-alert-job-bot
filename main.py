@@ -7,66 +7,40 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 from email.message import Message
 
-# Load environment variables (used in GitHub Secrets or .env locally)
+# Load credentials from environment (.env or GitHub Secrets)
 load_dotenv()
+EMAIL_USER = os.getenv("EMAIL_USER", "")
+EMAIL_PASS = os.getenv("EMAIL_PASS", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
-EMAIL_USER: str = os.getenv("EMAIL_USER", "")
-EMAIL_PASS: str = os.getenv("EMAIL_PASS", "")
-TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "")  # Your personal Telegram chat ID
-
-# Keywords to look for in job alert emails (English + Hebrew)
-KEYWORDS: list[str] = [
-    "student position",
-    "intern",
-    "internship",
-    "ai",
-    "artificial intelligence",
-    "machine learning",
-    "deep learning",
-    "computer vision",
-    "natural language processing",
-    "nlp",
-    "data science",
-    "data scientist",
-    "data analyst",
-    "software engineer",
-    "software engineering",
-    "backend developer",
-    "full stack",
-    "algorithm",
-    "algorithms",
-    "research intern",
-    "סטודנט"
+# Keywords to search for in job alerts
+KEYWORDS = [
+    "student position", "intern", "internship", "ai", "artificial intelligence",
+    "machine learning", "deep learning", "computer vision", "natural language processing",
+    "nlp", "data science", "data scientist", "data analyst", "software engineer",
+    "software engineering", "backend developer", "full stack", "algorithm",
+    "algorithms", "research intern", "סטודנט"
 ]
 
 def send_telegram_message(chat_id: str, message: str) -> None:
-    """
-    Sends a Telegram message to the specified chat ID.
-    """
+    """Send a message via Telegram bot."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     data = {"chat_id": chat_id, "text": message}
     requests.post(url, data=data)
 
 def extract_body(msg: Message) -> str:
-    """
-    Extracts plain text content from an email message.
-    """
+    """Extract plain text from an email message."""
     if msg.is_multipart():
         for part in msg.walk():
-            content_type = part.get_content_type()
-            content_disposition = str(part.get("Content-Disposition"))
-            if content_type == "text/plain" and "attachment" not in content_disposition:
+            if part.get_content_type() == "text/plain" and "attachment" not in str(part.get("Content-Disposition")):
                 return part.get_payload(decode=True).decode(errors="ignore")
     else:
         return msg.get_payload(decode=True).decode(errors="ignore")
     return ""
 
 def check_emails() -> None:
-    """
-    Connects to Gmail, reads unread emails from the last hour, and checks for relevant job alerts.
-    If matching content is found, sends a formatted Telegram message with job title and link.
-    """
+    """Check unread emails from last 5 hours and notify if matching job alert found."""
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(EMAIL_USER, EMAIL_PASS)
@@ -76,7 +50,7 @@ def check_emails() -> None:
         if result != "OK":
             return
 
-        for num in data[0].split():
+        for num in reversed(data[0].split()):
             result, msg_data = mail.fetch(num, "(RFC822)")
             if result != "OK":
                 continue
@@ -84,42 +58,42 @@ def check_emails() -> None:
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
-            # Check email timestamp (only process emails from the last hour)
+            # Filter by email timestamp (within 5 hours)
             date_tuple = email.utils.parsedate_tz(msg["Date"])
-            if date_tuple:
-                msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
-                if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=5):
-                    continue
+            if not date_tuple:
+                continue
+            msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
+            if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=5):
+                continue
 
             subject = msg["subject"] or ""
             body = extract_body(msg)
 
-            # Process only if subject matches and any keyword appears in body
-            if subject.strip() == "LinkedIn Job Alerts" and any(kw.lower() in body.lower() for kw in KEYWORDS):
+            # Match against keywords
+            if any(kw.lower() in body.lower() for kw in KEYWORDS):
                 links = re.findall(r'https://www\.linkedin\.com/jobs/view/[^\s<>"]+', body)
+                title = "Unknown Position"
+
                 if links:
-                    # Try to extract the line before the link as the job title
+                    # Try to extract job title from the line above the link
                     lines = body.splitlines()
-                    title = "Unknown Position"
                     for i, line in enumerate(lines):
                         if links[0] in line and i > 0:
-                            title_candidate = lines[i - 1].strip()
-                            if title_candidate:
-                                title = title_candidate
+                            candidate = lines[i - 1].strip()
+                            if candidate:
+                                title = candidate
                             break
 
-                    # Format and send the Telegram message
-                    message = (
-                        f"💼 New Internship Opportunity Detected!\n"
-                        f"📝 Title: {title}\n"
-                        f"🔗 {links[0]}"
-                    )
+                    # Send Telegram message
+                    message = f"💼 New Internship Opportunity Detected!\n📝 Title: {title}\n🔗 {links[0]}"
                     send_telegram_message(TELEGRAM_CHAT_ID, message)
+
+                    # ✅ Mark email as read ONLY if matched
+                    mail.store(num, '+FLAGS', '\\Seen')
 
         mail.logout()
 
     except Exception as e:
-        # Notify on error
         send_telegram_message(TELEGRAM_CHAT_ID, f"❗ Error while checking email: {str(e)}")
 
 if __name__ == "__main__":
