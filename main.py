@@ -15,16 +15,12 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 raw_keywords = os.getenv("KEYWORDS", "")
 KEYWORDS = [kw.strip().lower() for kw in raw_keywords.split(",") if kw.strip()]
 
-# Debug
-send_telegram_message(TELEGRAM_CHAT_ID, f"👀 Loaded {len(KEYWORDS)} keywords.")
-
-
-
-#send_telegram_message(TELEGRAM_CHAT_ID, "The length of KEYWORDS" + str(len(KEYWORDS))
-
 def send_telegram_message(chat_id: str, message: str) -> None:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": chat_id, "text": message})
+
+# Debug
+send_telegram_message(TELEGRAM_CHAT_ID, f"👀 Loaded {len(KEYWORDS)} keywords.")
 
 def extract_html(msg) -> str:
     if msg.is_multipart():
