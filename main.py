@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 EMAIL_USER = os.getenv("EMAIL_USER", "")
 EMAIL_PASS = os.getenv("EMAIL_PASS", "")
@@ -15,15 +15,16 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 raw_keywords = os.getenv("KEYWORDS", "")
 KEYWORDS = [kw.strip().lower() for kw in raw_keywords.split(",") if kw.strip()]
 
+# Function to send message to Telegram using your bot
 def send_telegram_message(chat_id: str, message: str) -> None:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": chat_id, "text": message})
 
-# Debug
+# Debug message: lets you know how many keywords were loaded
 send_telegram_message(TELEGRAM_CHAT_ID, f"👀 Loaded {len(KEYWORDS)} keywords.")
 print("Raw keyword string:", os.getenv("KEYWORDS", "Not found"))
 
-
+# Extract the HTML part of an email
 def extract_html(msg) -> str:
     if msg.is_multipart():
         for part in msg.walk():
@@ -33,16 +34,21 @@ def extract_html(msg) -> str:
         return msg.get_payload(decode=True).decode(errors="ignore")
     return ""
 
+# Main email-checking function
 def check_emails():
     try:
+        # Connect to Gmail IMAP server and log in
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
+
+        # Search for unread emails
         result, data = mail.search(None, "UNSEEN")
         if result != "OK":
             send_telegram_message(TELEGRAM_CHAT_ID, "❗ IMAP search failed.")
             return
 
+        # Process each unread email (most recent first)
         for num in reversed(data[0].split()):
             result, msg_data = mail.fetch(num, "(RFC822)")
             if result != "OK":
@@ -51,6 +57,7 @@ def check_emails():
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
+            # Check the email's timestamp — only process messages from last hour
             date_tuple = email.utils.parsedate_tz(msg["Date"])
             if not date_tuple:
                 continue
@@ -67,18 +74,21 @@ def check_emails():
             soup = BeautifulSoup(html, "html.parser")
             sent = False
 
+            # Look for all links (<a> tags) in the email
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag["href"]
                 title = a_tag.get_text(strip=True) or a_tag.get("aria-label") or "Job"
-            
+
+                # Match keywords in job title and confirm it's a LinkedIn link
                 if "linkedin.com" in href and any(kw in title.lower() for kw in KEYWORDS):
-                    # Find the next <span> next to the <a> — where company and location might be
+                    # Try to grab company and location info from nearby <span>
                     span = a_tag.find_next("span")
                     meta = span.get_text(strip=True) if span else "Unknown Company · Unknown Location"
                     parts = [p.strip() for p in meta.split("·")]
                     company = parts[0] if len(parts) > 0 else "Unknown"
                     location = parts[1] if len(parts) > 1 else "Unknown"
-            
+
+                    # Format message
                     message = (
                         f"💼 New Job Opportunity!\n"
                         f"📝 Title: {title}\n"
@@ -86,19 +96,23 @@ def check_emails():
                         f"📍 Location: {location}\n"
                         f"🔗 {href}"
                     )
+                    # Send the message to Telegram
                     send_telegram_message(TELEGRAM_CHAT_ID, message)
                     sent = True
 
-
+            # If nothing was matched and sent, notify no jobs found
             if not sent:
                 send_telegram_message(TELEGRAM_CHAT_ID, f"❗ No jobs found in email: {subject}")
             else:
+                # Mark the email as seen
                 mail.store(num, '+FLAGS', '\\Seen')
 
+        # Logout when finished
         mail.logout()
 
     except Exception as e:
         send_telegram_message(TELEGRAM_CHAT_ID, f"❗ Error while checking email: {str(e)}")
 
+# Run the check when the script is executed
 if __name__ == "__main__":
     check_emails()
