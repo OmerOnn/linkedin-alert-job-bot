@@ -12,28 +12,12 @@ EMAIL_USER = os.getenv("EMAIL_USER", "")
 EMAIL_PASS = os.getenv("EMAIL_PASS", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-KEYWORDS = [
-    "student position",
-    "intern",
-    "internship",
-    "ai",
-    "artificial intelligence",
-    "machine learning",
-    "deep learning",
-    "computer vision",
-    "natural language processing",
-    "nlp",
-    "data science",
-    "data scientist",
-    "data analyst",
-    "software engineer",
-    "software engineering",
-    "backend developer",
-    "full stack",
-    "algorithm",
-    "algorithms",
-    "research intern"
-]
+raw_keywords = os.getenv("KEYWORDS", "")
+KEYWORDS = [kw.strip().lower() for kw in raw_keywords.split(",") if kw.strip()]
+
+# Debug
+send_telegram_message(TELEGRAM_CHAT_ID, f"👀 Loaded {len(KEYWORDS)} keywords.")
+
 
 
 #send_telegram_message(TELEGRAM_CHAT_ID, "The length of KEYWORDS" + str(len(KEYWORDS))
@@ -88,8 +72,6 @@ def check_emails():
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag["href"]
                 title = a_tag.get_text(strip=True) or a_tag.get("aria-label") or "Job"
-                send_telegram_message(TELEGRAM_CHAT_ID, str(title))
-                send_telegram_message(TELEGRAM_CHAT_ID, str(href))
             
                 if "linkedin.com" in href and any(kw in title.lower() for kw in KEYWORDS):
                     # Find the next <span> next to the <a> — where company and location might be
