@@ -63,16 +63,26 @@ def check_emails():
 
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag["href"]
-                if "linkedin.com/jobs" in href or "linkedin.com/comm/jobs" in href:
-                    title = a_tag.get_text(strip=True) or a_tag.get("aria-label") or "Job Listing"
-                    if any(kw in title.lower() for kw in KEYWORDS):
-                        message = (
-                            f"💼 New Job Opportunity!\n"
-                            f"📝 Title: {title}\n"
-                            f"🔗 {href}"
-                        )
-                        send_telegram_message(TELEGRAM_CHAT_ID, message)
-                        sent = True
+                title = a_tag.get_text(strip=True) or a_tag.get("aria-label") or "Job"
+            
+                if "linkedin.com" in href and any(kw in title.lower() for kw in KEYWORDS):
+                    # Find the next <span> next to the <a> — where company and location might be
+                    span = a_tag.find_next("span")
+                    meta = span.get_text(strip=True) if span else "Unknown Company · Unknown Location"
+                    parts = [p.strip() for p in meta.split("·")]
+                    company = parts[0] if len(parts) > 0 else "Unknown"
+                    location = parts[1] if len(parts) > 1 else "Unknown"
+            
+                    message = (
+                        f"💼 New Job Opportunity!\n"
+                        f"📝 Title: {title}\n"
+                        f"🏢 Company: {company}\n"
+                        f"📍 Location: {location}\n"
+                        f"🔗 {href}"
+                    )
+                    send_telegram_message(TELEGRAM_CHAT_ID, message)
+                    sent = True
+
 
             if not sent:
                 send_telegram_message(TELEGRAM_CHAT_ID, f"❗ No jobs found in email: {subject}")
