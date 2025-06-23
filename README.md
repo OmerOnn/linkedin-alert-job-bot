@@ -1,95 +1,100 @@
 # 📬 LinkedIn Job Alert Bot
 
-This GitHub Action monitors your Gmail inbox for new **LinkedIn job alert** emails that match specific keywords (like "student", "AI", "software engineer", etc).  
-If a match is found, the bot sends a notification directly to your **Telegram** account via your personal bot.
+![Workflow Status](https://github.com/your-username/linkedin-alert-job-bot/actions/workflows/run.yml/badge.svg)
+
+A GitHub Action that monitors your Gmail inbox for **LinkedIn job alert emails**, scans for jobs that match your favorite keywords (like `"student"`, `"AI"`, `"software engineer"`), and sends job listings directly to your **Telegram** via your own bot — completely free and automatic.
 
 ---
 
 ## 🚀 What It Does
 
-- Connects to your Gmail inbox using IMAP every 30 minutes
-- Checks for **unread emails** with subject `LinkedIn Job Alerts`
-- Filters only those received within the **last hour**
-- Scans the email body for **predefined keywords**
-- Sends a **Telegram message** via bot with the relevant job link
+- Connects to Gmail via IMAP  
+- Checks new, unread LinkedIn job alert emails (within the past hour)  
+- Parses job titles, company names, and locations from the HTML content  
+- Matches job titles against your own keywords  
+- Sends alerts as Telegram messages  
 
 ---
 
-## 🔐 GitHub Secrets Required
-
-To run this workflow, define the following secrets in your repository:
+## 🔐 Required GitHub Secrets
 
 | Secret Name            | Description                                                                |
 |------------------------|----------------------------------------------------------------------------|
-| `EMAIL_USER`           | Your Gmail address (e.g., `you@gmail.com`)                                 |
-| `EMAIL_PASS`           | A Gmail App Password (not your real password — see instructions below)     |
-| `TELEGRAM_BOT_TOKEN`   | Token from [@BotFather](https://t.me/BotFather) when you create your bot   |
-| `TELEGRAM_CHAT_ID`     | Your personal Telegram ID (see how to get it below)                        |
+| `EMAIL_USER`           | Your Gmail address                                                         |
+| `EMAIL_PASS`           | Gmail App Password (see instructions below)                                |
+| `TELEGRAM_BOT_TOKEN`   | Telegram bot token from [@BotFather](https://t.me/BotFather)               |
+| `TELEGRAM_CHAT_ID`     | Your user ID from [@userinfobot](https://t.me/userinfobot)                 |
+| `KEYWORDS`             | Comma-separated list of keywords (e.g. `student,ai,intern,developer`)      |
 
 ---
 
 ## ✉️ How to Get a Gmail App Password
 
-If you have 2-Step Verification enabled on your Gmail account:
+If you use 2-Step Verification:
 
-1. Go to [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
-2. Select **Mail** as the app, **Other (Custom name)** for device, and name it like "GitHub"
-3. Google will generate a 16-character app password
-4. Use that password as `EMAIL_PASS` in your GitHub secrets
-
----
-
-## 🤖 How to Set Up a Telegram Bot
-
-1. Open [@BotFather](https://t.me/BotFather) in Telegram
-2. Send `/newbot` and follow the prompts
-3. Save the **API token** → use it for `TELEGRAM_BOT_TOKEN`
-4. Get your **Chat ID** using [@userinfobot](https://t.me/userinfobot)
-   - Send `/start` to it
-   - It will respond with your Telegram ID → use it for `TELEGRAM_CHAT_ID`
-
----
-## 💡 Example Telegram Message
-
-```
-💼 New Internship Opportunity Detected!  
-📝 Title: AI Research Intern  
-🔗 https://www.linkedin.com/jobs/view/1234567890
-```
-
-
-## 🔍 Keyword Matching
-
-Edit the keyword list in `main.py` to filter jobs by your interests:
-
-```python
-KEYWORDS = [
-    "student", "intern", "internship", "ai", "software engineer", "nlp",
-    "machine learning", "data science", "סטודנט"
-]
-```
-
-The script will match emails that contain any of the keywords above.
+1. Go to [Google App Passwords](https://myaccount.google.com/apppasswords)  
+2. Select **Mail** as the app and name it something like "GitHub"  
+3. Google will generate a 16-character app password  
+4. Use that for `EMAIL_PASS` in your GitHub secrets  
 
 ---
 
-## 🕒 Frequency
-The workflow runs every 30 minutes by default.
-You can change this in .github/workflows/run.yml:
+## 🤖 Setting Up Your Telegram Bot
 
+1. Open [@BotFather](https://t.me/BotFather) in Telegram  
+2. Send `/newbot` and follow the steps to create one  
+3. Copy the token → this is your `TELEGRAM_BOT_TOKEN`  
+4. Open [@userinfobot](https://t.me/userinfobot) and send `/start`  
+5. It will return your Telegram ID → use it for `TELEGRAM_CHAT_ID`  
+
+---
+
+## 📲 Example Telegram Message
+
+💼 New Job Opportunity!
+📝 Title: AI Research Intern
+🏢 Company: NVIDIA
+📍 Location: Remote
+🔗 https://www.linkedin.com/jobs/view/1234567890/
+
+---
+
+## 🔍 Customize Your Keyword List
+
+Your job-matching keywords come from the `KEYWORDS` GitHub secret.
+
+**Example value:**
+student,intern,ai,software engineer,data scientist,backend developer
+
+
+Matching is **case-insensitive** and checks if any keyword appears in the job title.
+
+---
+
+## ⏰ Workflow Schedule
+
+This bot runs every **30 minutes** by default using GitHub Actions.
+
+To change that, edit `.github/workflows/run.yml`:
+
+```yaml
 schedule:
-  - cron: '*/30 * * * *'  # every 30 minutes
+  - cron: '*/30 * * * *'
+You can adjust the frequency with crontab.guru.
+```
 
 ---
-## 🗂️ File Structure
 
-```
+##📦 File Structure
+
 📁 .github/workflows/
-   └── run.yml        # GitHub Actions workflow config
+   └── run.yml           → GitHub Actions workflow
 
-📄 main.py            # Core Python script  
-📄 requirements.txt   # Python dependencies  
-📄 README.md          # You are here  
-```
+📄 main.py               → Email parser and job detector  
+📄 requirements.txt      → Python dependencies  
+📄 README.md             → This file  
 
-Built with ❤️ to help students and developers find job opportunities instantly.
+---
+
+##❤️ Built with love by Omer
+Feel free to fork, improve, and share this bot with other students or job hunters looking to automate their search!
