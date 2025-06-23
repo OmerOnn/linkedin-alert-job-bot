@@ -1,7 +1,6 @@
 import imaplib
 import email
 import os
-import re
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -20,7 +19,6 @@ def send_telegram_message(chat_id: str, message: str) -> None:
     requests.post(url, data={"chat_id": chat_id, "text": message})
 
 def extract_html(msg) -> str:
-    """Extract HTML content from an email."""
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == "text/html":
@@ -47,7 +45,6 @@ def check_emails():
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
-            # Check timestamp
             date_tuple = email.utils.parsedate_tz(msg["Date"])
             if not date_tuple:
                 continue
@@ -66,37 +63,21 @@ def check_emails():
 
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag["href"]
-                if "linkedin.com/jobs" in href and a_tag.find_parent("table"):
-                    title = a_tag.get_text(strip=True)
-                    if not title:
-                        title = a_tag.get("aria-label") or "Job Listing"
-                    link = href
-                    company, location = "Unknown Company", "Unknown Location"
-            
-                    parent = a_tag.find_parent()
-                    span = parent.find("span") if parent else None
-                    if span and "·" in span.text:
-                        parts = span.text.strip().split("·")
-                        if len(parts) == 2:
-                            company, location = parts[0].strip(), parts[1].strip()
-            
+                if "linkedin.com/jobs" in href or "linkedin.com/comm/jobs" in href:
+                    title = a_tag.get_text(strip=True) or a_tag.get("aria-label") or "Job Listing"
                     if any(kw in title.lower() for kw in KEYWORDS):
                         message = (
-                            f"💼 New Job Opportunity Detected!\n"
+                            f"💼 New Job Opportunity!\n"
                             f"📝 Title: {title}\n"
-                            f"🏢 Company: {company}\n"
-                            f"📍 Location: {location}\n"
-                            f"🔗 {link}"
+                            f"🔗 {href}"
                         )
                         send_telegram_message(TELEGRAM_CHAT_ID, message)
                         sent = True
 
-
-            # Notify if no jobs found in the email
             if not sent:
                 send_telegram_message(TELEGRAM_CHAT_ID, f"❗ No jobs found in email: {subject}")
             else:
-                mail.store(num, '+FLAGS', '\\Seen')  # Mark as read
+                mail.store(num, '+FLAGS', '\\Seen')
 
         mail.logout()
 
