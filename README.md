@@ -1,6 +1,5 @@
 # 📬 LinkedIn Job Alert Bot
 
-![Workflow Status](https://github.com/your-username/linkedin-alert-job-bot/actions/workflows/run.yml/badge.svg)
 
 A GitHub Action that monitors your Gmail inbox for **LinkedIn job alert emails**, scans for jobs that match your favorite keywords (like `"student"`, `"AI"`, `"software engineer"`), and sends job listings directly to your **Telegram** via your own bot — completely free and automatic.
 
