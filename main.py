@@ -64,6 +64,8 @@ def check_emails():
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag["href"]
                 title = a_tag.get_text(strip=True) or a_tag.get("aria-label") or "Job"
+                send_telegram_message(TELEGRAM_CHAT_ID, str(title))
+                send_telegram_message(TELEGRAM_CHAT_ID, str(href))
             
                 if "linkedin.com" in href and any(kw in title.lower() for kw in KEYWORDS):
                     # Find the next <span> next to the <a> — where company and location might be
