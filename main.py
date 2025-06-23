@@ -21,6 +21,8 @@ def send_telegram_message(chat_id: str, message: str) -> None:
 
 # Debug
 send_telegram_message(TELEGRAM_CHAT_ID, f"👀 Loaded {len(KEYWORDS)} keywords.")
+print("Raw keyword string:", os.getenv("KEYWORDS", "Not found"))
+
 
 def extract_html(msg) -> str:
     if msg.is_multipart():
