@@ -39,7 +39,7 @@ def check_emails():
         mail.select("inbox")
 
         # Search for unread emails
-        result, data = mail.search(None, '(SUBJECT "LinkedIn Job Alerts")')
+        result, data = mail.search(None, 'ALL')
         if result != "OK":
             send_telegram_message(TELEGRAM_CHAT_ID, "❗ IMAP search failed.")
             return
