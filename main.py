@@ -85,10 +85,16 @@ def check_emails():
                 if "linkedin.com" in href and any(kw in title.lower() for kw in KEYWORDS):
                     # Try to grab company and location info from nearby <span>
                     span = a_tag.find_next("span")
-                    meta = span.get_text(strip=True) if span else "Unknown Company · Unknown Location"
-                    parts = [p.strip() for p in meta.split("·")]
+                    
+                    # Clean meta text and try to extract company and location
+                    meta = span.get_text("·", strip=True) if span else ""
+                    parts = [p.strip() for p in meta.split("·") if p.strip()]
                     company = parts[0] if len(parts) > 0 else "Unknown"
                     location = parts[1] if len(parts) > 1 else "Unknown"
+                    
+                    # Remove extra phrases from location
+                    for noise in ["Actively recruiting", "Actively Hiring"]:
+                        location = location.replace(noise, "").strip()
 
                     # Format message
                     message = (
@@ -100,6 +106,7 @@ def check_emails():
                     )
                     # Send the message to Telegram
                     send_telegram_message(TELEGRAM_CHAT_ID, message)
+                    send_telegram_message(TELEGRAM_CHAT_ID, "----------------")
                     sent = True
 
             # If nothing was matched and sent, notify no jobs found
