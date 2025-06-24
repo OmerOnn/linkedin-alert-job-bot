@@ -87,7 +87,8 @@ def check_emails():
                     # Try to grab company and location info from nearby <span>
                     span = a_tag.find_next("span")
                     meta = span.get_text(strip=True) if span else "Unknown Company · Unknown Location"
-                    parts = [p.strip() for p in meta.split("·")] company = parts[0] if len(parts) > 0 else "Unknown"
+                    parts = [p.strip() for p in meta.split("·")]
+                    company = parts[0] if len(parts) > 0 else "Unknown"
                     location = parts[1] if len(parts) > 1 else "Unknown"
 
 
