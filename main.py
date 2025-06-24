@@ -20,10 +20,6 @@ def send_telegram_message(chat_id: str, message: str) -> None:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": chat_id, "text": message})
 
-# Debug message: lets you know how many keywords were loaded
-send_telegram_message(TELEGRAM_CHAT_ID, f"👀 Loaded {len(KEYWORDS)} keywords.")
-print("Raw keyword string:", os.getenv("KEYWORDS", "Not found"))
-
 # Extract the HTML part of an email
 def extract_html(msg) -> str:
     if msg.is_multipart():
@@ -43,7 +39,7 @@ def check_emails():
         mail.select("inbox")
 
         # Search for unread emails
-        result, data = mail.search(None, "UNSEEN")
+        result, data = mail.search(None, '(SUBJECT "LinkedIn Job Alerts")')
         if result != "OK":
             send_telegram_message(TELEGRAM_CHAT_ID, "❗ IMAP search failed.")
             return
@@ -78,6 +74,12 @@ def check_emails():
             for a_tag in soup.find_all("a", href=True):
                 href = a_tag["href"]
                 title = a_tag.get_text(strip=True) or a_tag.get("aria-label") or "Job"
+
+                # Skip generic headers or search links
+                if any(phrase in title.lower() for phrase in ["your job alert", "see all jobs", "view all", "recommended jobs"]):
+                    continue
+                if "/jobs/search" in href or "/comm/jobs/search" in href:
+                    continue
 
                 # Match keywords in job title and confirm it's a LinkedIn link
                 if "linkedin.com" in href and any(kw in title.lower() for kw in KEYWORDS):
