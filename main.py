@@ -63,7 +63,7 @@ def check_emails():
                 continue
             msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
             if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=1):
-                continue
+                break # all next emails are over the hours
 
             subject = msg["Subject"] or "(no subject)"
             html = extract_html(msg)
