@@ -58,7 +58,7 @@ def check_emails():
             if not date_tuple:
                 continue
             msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
-            if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=5):
+            if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=2):
                 break # all next emails are over the hours
 
             subject = msg["Subject"] or "(no subject)"
@@ -85,9 +85,17 @@ def check_emails():
                 if "linkedin.com" in href and any(kw in title.lower() for kw in KEYWORDS):
                     
                     # Try to grab company and location info from nearby <span>
-                    span = a_tag.find_next("span")
-                    meta = span.get_text(strip=True) if span else "Unknown Company · Unknown Location"
-                    parts = [p.strip() for p in meta.split("·")]
+                    # Look for the <a>'s next meaningful sibling, which likely holds "Company · Location"
+                    meta = None
+                    next_node = a_tag.find_next_sibling()
+                    while next_node:
+                        text = next_node.get_text("·", strip=True)
+                        if "·" in text:
+                            meta = text
+                            break
+                        next_node = next_node.find_next_sibling()
+                    
+                    parts = [p.strip() for p in meta.split("·")] if meta else []
                     company = parts[0] if len(parts) > 0 else "Unknown"
                     location = parts[1] if len(parts) > 1 else "Unknown"
 
@@ -102,7 +110,7 @@ def check_emails():
                     )
                     # Send the message to Telegram
                     send_telegram_message(TELEGRAM_CHAT_ID, message)
-                    send_telegram_message(TELEGRAM_CHAT_ID, "----------------")
+                    send_telegram_message(TELEGRAM_CHAT_ID, "--------------------")
                     sent = True
 
             # If nothing was matched and sent, notify no jobs found
