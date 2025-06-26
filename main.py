@@ -149,7 +149,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 raw_keywords = os.getenv("KEYWORDS", "")
 KEYWORDS = [kw.strip().lower() for kw in raw_keywords.split(",") if kw.strip()]
 
-# Function to send message to Telegram using your bot
+# Function to send a message to Telegram
 def send_telegram_message(chat_id: str, message: str) -> None:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": chat_id, "text": message})
@@ -164,7 +164,7 @@ def extract_html(msg) -> str:
         return msg.get_payload(decode=True).decode(errors="ignore")
     return ""
 
-# Main email-checking function
+# Main function to process emails
 def check_emails():
     try:
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
@@ -184,7 +184,7 @@ def check_emails():
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
-            # Check the email's timestamp
+            # Only check emails from the past 2 hours
             date_tuple = email.utils.parsedate_tz(msg["Date"])
             if not date_tuple:
                 continue
@@ -211,23 +211,18 @@ def check_emails():
                     continue
 
                 if "linkedin.com" in href and any(kw in raw_text.lower() for kw in KEYWORDS):
-                    # Try to extract bolded job title
+                    # Get the job title from bold tag if available
                     bold_tag = a_tag.find("strong") or a_tag.find("b")
-                    title = bold_tag.get_text(strip=True) if bold_tag else raw_text
+                    title = bold_tag.get_text(strip=True) if bold_tag else None
 
-                    # Look for the sibling with "Company · Location"
-                    meta = None
-                    next_node = a_tag.find_next_sibling()
-                    while next_node:
-                        text = next_node.get_text("·", strip=True)
-                        if "·" in text:
-                            meta = text
-                            break
-                        next_node = next_node.find_next_sibling()
+                    # If no bold tag, try splitting the raw text at dots
+                    full_text = a_tag.get_text("·", strip=True)
+                    parts = [p.strip() for p in full_text.split("·")]
 
-                    parts = [p.strip() for p in meta.split("·")] if meta else []
-                    company = parts[0] if len(parts) > 0 else "Unknown"
-                    location = parts[1] if len(parts) > 1 else "Unknown"
+                    # Assign values gracefully
+                    title = title or parts[0] if len(parts) > 0 else "Unknown"
+                    company = parts[1] if len(parts) > 1 else "Unknown"
+                    location = parts[2] if len(parts) > 2 else "Unknown"
 
                     message = (
                         f"💼 New Job Opportunity!\n"
@@ -250,5 +245,7 @@ def check_emails():
     except Exception as e:
         send_telegram_message(TELEGRAM_CHAT_ID, f"❗ Error while checking email: {str(e)}")
 
+# Run the job check
 if __name__ == "__main__":
     check_emails()
+
