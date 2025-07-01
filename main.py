@@ -127,6 +127,7 @@ import imaplib
 import email
 import os
 import requests
+import re
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
@@ -190,6 +191,7 @@ def check_emails():
                 continue
 
             soup = BeautifulSoup(html, "html.parser")
+            sent_job_id = set()
             sent = False
 
             for a_tag in soup.find_all("a", href=True):
@@ -200,6 +202,13 @@ def check_emails():
                     continue
                 if "/jobs/search" in href or "/comm/jobs/search" in href:
                     continue
+
+                job_id_match = re.search(r"/job/view/(\d+)", href)
+                job_id = job_id_match.group(1) if job_id_match else None
+                if job_id in sent_job_id:
+                    continue
+                if job_id:
+                    sent_job_ids.add(job_id)
 
                 if "linkedin.com" in href and any(kw in raw_text.lower() for kw in KEYWORDS):
                     # Get the job title from bold tag if available
