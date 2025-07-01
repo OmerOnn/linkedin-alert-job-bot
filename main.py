@@ -181,7 +181,7 @@ def check_emails():
             if not date_tuple:
                 continue
             msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
-            if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=48):
+            if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=1):
                 break
 
             subject = msg["Subject"] or "(no subject)"
@@ -203,7 +203,7 @@ def check_emails():
                 if "/jobs/search" in href or "/comm/jobs/search" in href:
                     continue
 
-                job_id_match = re.search(r"/job/view/(\d+)", href)
+                job_id_match = re.search(r"/jobs/view/(\d+)", href)
                 job_id = job_id_match.group(1) if job_id_match else None
                 if job_id in sent_job_id:
                     continue
