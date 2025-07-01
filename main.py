@@ -203,12 +203,17 @@ def check_emails():
                 if "/jobs/search" in href or "/comm/jobs/search" in href:
                     continue
 
-                job_id_match = re.search(r"/jobs/view/(\d+)", href)
-                job_id = job_id_match.group(1) if job_id_match else None
-                if job_id in sent_job_id:
+                # job_id_match = re.search(r"/jobs/view/(\d+)", href)
+                # job_id = job_id_match.group(1) if job_id_match else None
+                # if job_id in sent_job_id:
+                #     continue
+                # if job_id:
+                #     sent_job_id.add(job_id)
+
+                if str(href) in sent_job_id:
                     continue
-                if job_id:
-                    sent_job_id.add(job_id)
+                else:
+                    sent_job_id.add(str(href))
 
                 if "linkedin.com" in href and any(kw in raw_text.lower() for kw in KEYWORDS):
                     # Get the job title from bold tag if available
