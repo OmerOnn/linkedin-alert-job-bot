@@ -181,7 +181,7 @@ def check_emails():
             if not date_tuple:
                 continue
             msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
-            if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=1):
+            if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=48):
                 break
 
             subject = msg["Subject"] or "(no subject)"
