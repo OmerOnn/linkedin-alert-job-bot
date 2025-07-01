@@ -208,7 +208,7 @@ def check_emails():
                 if job_id in sent_job_id:
                     continue
                 if job_id:
-                    sent_job_ids.add(job_id)
+                    sent_job_id.add(job_id)
 
                 if "linkedin.com" in href and any(kw in raw_text.lower() for kw in KEYWORDS):
                     # Get the job title from bold tag if available
