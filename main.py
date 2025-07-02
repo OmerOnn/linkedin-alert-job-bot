@@ -16,10 +16,14 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 raw_keywords = os.getenv("KEYWORDS", "")
 KEYWORDS = [kw.strip().lower() for kw in raw_keywords.split(",") if kw.strip()]
 
-# Function to send a message to Telegram
+# Function to send a message to Telegram using Markdown formatting
 def send_telegram_message(chat_id: str, message: str) -> None:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": chat_id, "text": message})
+    requests.post(url, data={
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    })
 
 # Extract the HTML body of an email
 def extract_html(msg) -> str:
@@ -31,16 +35,17 @@ def extract_html(msg) -> str:
         return msg.get_payload(decode=True).decode(errors="ignore")
     return ""
 
-# Extract LinkedIn job ID from the URL
+# Extract LinkedIn job ID from a URL
 def extract_job_id(url: str) -> str:
     match = re.search(r'/jobs/view/(\d+)', url)
     return match.group(1) if match else None
 
-# Main function to check and process emails
+# Main function to check and process job emails
 def check_emails():
-    sent_job_ids = set()  # Set to track job IDs already sent in this run
+    sent_job_ids = set()  # Track job IDs to prevent duplicates in the same run
 
     try:
+        # Connect to Gmail and select inbox
         mail = imaplib.IMAP4_SSL("imap.gmail.com")
         mail.login(EMAIL_USER, EMAIL_PASS)
         mail.select("inbox")
@@ -58,7 +63,7 @@ def check_emails():
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
-            # Parse the email timestamp
+            # Get the email's date
             date_tuple = email.utils.parsedate_tz(msg["Date"])
             if not date_tuple:
                 continue
@@ -71,7 +76,6 @@ def check_emails():
             subject = msg["Subject"] or "(no subject)"
             html = extract_html(msg)
             if not html:
-                send_telegram_message(TELEGRAM_CHAT_ID, f"❗ No HTML body found in email: {subject}")
                 continue
 
             soup = BeautifulSoup(html, "html.parser")
@@ -87,14 +91,14 @@ def check_emails():
                 if "/jobs/search" in href or "/comm/jobs/search" in href:
                     continue
 
-                # Check for job ID and avoid duplicates
+                # Get job ID from the URL
                 job_id = extract_job_id(href)
                 if not job_id or job_id in sent_job_ids:
-                    continue
+                    continue  # Already sent this job
 
-                # Check if job matches any keyword
+                # Check if the job matches any keywords
                 if "linkedin.com" in href and any(kw in raw_text.lower() for kw in KEYWORDS):
-                    # Try to extract title/company/location from the link text
+                    # Try to get job title, company, and location
                     bold_tag = a_tag.find("strong") or a_tag.find("b")
                     title = bold_tag.get_text(strip=True) if bold_tag else None
 
@@ -105,25 +109,22 @@ def check_emails():
                     company = parts[1] if len(parts) > 1 else "Unknown"
                     location = parts[2] if len(parts) > 2 else "Unknown"
 
-                    # Compose and send Telegram message
+                    # Create Markdown-formatted message
                     message = (
-                        f"💼 New Job Opportunity!\n"
-                        f"📝 Title: {title}\n"
-                        f"🏢 Company: {company}\n"
-                        f"📍 Location: {location}\n"
-                        f"🔗 {href}"
+                        f"💼 *New Job Opportunity!*\n"
+                        f"📝 *Title:* {title}\n"
+                        f"🏢 *Company:* {company}\n"
+                        f"📍 *Location:* {location}\n"
+                        f"🔗 [Apply here]({href})"
                     )
-                    send_telegram_message(TELEGRAM_CHAT_ID, message)
-                    send_telegram_message(TELEGRAM_CHAT_ID, "--------------------")
 
-                    # Mark job as sent in this run
+                    # Send message and track job ID
+                    send_telegram_message(TELEGRAM_CHAT_ID, message)
                     sent_job_ids.add(job_id)
                     sent = True
 
-            if not sent:
-                send_telegram_message(TELEGRAM_CHAT_ID, f"❗ No jobs found in email: {subject}")
-            else:
-                # Mark the email as read so it's not reprocessed later
+            # Mark email as read only if a job was found and sent
+            if sent:
                 mail.store(num, '+FLAGS', '\\Seen')
 
         mail.logout()
@@ -131,6 +132,6 @@ def check_emails():
     except Exception as e:
         send_telegram_message(TELEGRAM_CHAT_ID, f"❗ Error while checking email: {str(e)}")
 
-# Run the script
+# Entry point
 if __name__ == "__main__":
     check_emails()
