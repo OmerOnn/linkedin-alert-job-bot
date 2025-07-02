@@ -2,7 +2,6 @@ import imaplib
 import email
 import os
 import requests
-import re
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
@@ -16,12 +15,12 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 raw_keywords = os.getenv("KEYWORDS", "")
 KEYWORDS = [kw.strip().lower() for kw in raw_keywords.split(",") if kw.strip()]
 
-# Send plain text Telegram message
+# Function to send a message to Telegram
 def send_telegram_message(chat_id: str, message: str) -> None:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": chat_id, "text": message})
 
-# Extract HTML part from email
+# Extract the HTML part of an email
 def extract_html(msg) -> str:
     if msg.is_multipart():
         for part in msg.walk():
@@ -51,13 +50,13 @@ def check_emails():
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
 
-            # Only process emails from the last 2 hours
+            # Only check emails from the past 2 hours
             date_tuple = email.utils.parsedate_tz(msg["Date"])
             if not date_tuple:
                 continue
             msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
             if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=48):
-                continue
+                break
 
             subject = msg["Subject"] or "(no subject)"
             html = extract_html(msg)
@@ -66,7 +65,6 @@ def check_emails():
                 continue
 
             soup = BeautifulSoup(html, "html.parser")
-            sent_job_ids = set()
             sent = False
 
             for a_tag in soup.find_all("a", href=True):
@@ -78,19 +76,17 @@ def check_emails():
                 if "/jobs/search" in href or "/comm/jobs/search" in href:
                     continue
 
-                job_id_match = re.search(r"/jobs/view/(\d+)", href)
-                job_id = job_id_match.group(1) if job_id_match else None
-                if job_id in sent_job_ids:
-                    continue
-                if job_id:
-                    sent_job_ids.add(job_id)
-
                 if "linkedin.com" in href and any(kw in raw_text.lower() for kw in KEYWORDS):
+                    # Get the job title from bold tag if available
                     bold_tag = a_tag.find("strong") or a_tag.find("b")
+                    title = bold_tag.get_text(strip=True) if bold_tag else None
+
+                    # If no bold tag, try splitting the raw text at dots
                     full_text = a_tag.get_text("·", strip=True)
                     parts = [p.strip() for p in full_text.split("·")]
 
-                    title = bold_tag.get_text(strip=True) if bold_tag else parts[0] if parts else "Unknown"
+                    # Assign values gracefully
+                    title = title or parts[0] if len(parts) > 0 else "Unknown"
                     company = parts[1] if len(parts) > 1 else "Unknown"
                     location = parts[2] if len(parts) > 2 else "Unknown"
 
@@ -105,7 +101,9 @@ def check_emails():
                     send_telegram_message(TELEGRAM_CHAT_ID, "--------------------")
                     sent = True
 
-            if sent:
+            if not sent:
+                send_telegram_message(TELEGRAM_CHAT_ID, f"❗ No jobs found in email: {subject}")
+            else:
                 mail.store(num, '+FLAGS', '\\Seen')
 
         mail.logout()
@@ -113,6 +111,6 @@ def check_emails():
     except Exception as e:
         send_telegram_message(TELEGRAM_CHAT_ID, f"❗ Error while checking email: {str(e)}")
 
-# Run script
+# Run the job check
 if __name__ == "__main__":
     check_emails()
