@@ -1,142 +1,189 @@
 import imaplib
 import email
 import os
+import re
 import requests
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from datetime import datetime, timedelta, timezone
-import re
+from dotenv import load_dotenv
+from typing import List, Tuple, Optional, Dict
 
-# Load environment variables from .env file
+# Load environment variables from the .env file
 load_dotenv()
-EMAIL_USER = os.getenv("EMAIL_USER", "")  # Gmail username
-EMAIL_PASS = os.getenv("EMAIL_PASS", "")  # Gmail password or app password
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")  # Telegram Bot token
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")  # Chat ID to send alerts to
-raw_keywords = os.getenv("KEYWORDS", "")  # Comma-separated keywords
-KEYWORDS = [kw.strip().lower() for kw in raw_keywords.split(",") if kw.strip()]  # Normalize keywords
 
-# Send a message to a Telegram chat using Markdown format
-def send_telegram_message(chat_id: str, message: str) -> None:
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    requests.post(url, data={
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "Markdown"  # Allows bold, italics, and clickable links
-    })
+class TelegramNotifier:
+    """Handles sending messages via Telegram Bot API."""
+    def __init__(self, token: str, chat_id: str):
+        self.token: str = token
+        self.chat_id: str = chat_id
 
-# Extract HTML content from an email message
-def extract_html(msg) -> str:
-    if msg.is_multipart():
-        for part in msg.walk():
-            if part.get_content_type() == "text/html":
-                return part.get_payload(decode=True).decode(errors="ignore")
-    elif msg.get_content_type() == "text/html":
-        return msg.get_payload(decode=True).decode(errors="ignore")
-    return ""
+    def send_message(self, message: str) -> None:
+        """Send a formatted message to the specified Telegram chat."""
+        url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+        requests.post(url, data={
+            "chat_id": self.chat_id,
+            "text": message,
+            "parse_mode": "Markdown"
+        })
 
-# Extract LinkedIn job ID from a job link URL
-def extract_job_id(url: str) -> str:
-    match = re.search(r'/jobs/view/(\d+)', url)
-    return match.group(1) if match else None
+class EmailFetcher:
+    """Responsible for connecting to Gmail and retrieving emails."""
+    def __init__(self, user: str, password: str):
+        self.user: str = user
+        self.password: str = password
+        self.connection: Optional[imaplib.IMAP4_SSL] = None
 
-# Main logic to connect to Gmail, read emails, and forward job matches to Telegram
-def check_emails():
-    sent_job_ids = set()  # To track and avoid sending duplicate job alerts
+    def connect(self) -> None:
+        """Establish a secure connection to Gmail via IMAP."""
+        self.connection = imaplib.IMAP4_SSL("imap.gmail.com")
+        self.connection.login(self.user, self.password)
+        self.connection.select("inbox")
 
-    try:
-        # Connect securely to Gmail IMAP server
-        mail = imaplib.IMAP4_SSL("imap.gmail.com")
-        mail.login(EMAIL_USER, EMAIL_PASS)
-        mail.select("inbox")  # Open inbox folder
-
-        # Search for all emails
-        result, data = mail.search(None, 'ALL')
+    def fetch_recent_emails(self, hours: int = 24) -> List[Tuple[bytes, email.message.Message]]:
+        """Fetch emails from the last 'hours' timeframe (default: 24 hours)."""
+        result, data = self.connection.search(None, 'ALL')
         if result != "OK":
-            send_telegram_message(TELEGRAM_CHAT_ID, "❗ IMAP search failed.")
-            return
+            raise Exception("IMAP search failed.")
 
-        # Process emails from newest to oldest
+        emails: List[Tuple[bytes, email.message.Message]] = []
         for num in reversed(data[0].split()):
-            result, msg_data = mail.fetch(num, "(RFC822)")
+            result, msg_data = self.connection.fetch(num, "(RFC822)")
             if result != "OK":
                 continue
 
-            # Parse the raw email
             raw_email = msg_data[0][1]
             msg = email.message_from_bytes(raw_email)
-
-            # Parse and convert email timestamp to UTC
             date_tuple = email.utils.parsedate_tz(msg["Date"])
             if not date_tuple:
                 continue
-            msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
 
-            # Stop checking once emails are older than 24 hours
-            if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=24):
+            msg_datetime = datetime.fromtimestamp(email.utils.mktime_tz(date_tuple), tz=timezone.utc)
+            if datetime.now(timezone.utc) - msg_datetime > timedelta(hours=hours):
                 break
 
-            subject = msg["Subject"] or "(no subject)"  # Default subject if missing
-            html = extract_html(msg)
-            if not html:
-                continue  # Skip emails without HTML content
+            emails.append((num, msg))
+        return emails
 
-            soup = BeautifulSoup(html, "html.parser")  # Parse HTML
-            sent = False  # Flag if any job was sent from this email
+    def mark_as_read(self, num: bytes) -> None:
+        """Mark the specified email as read in the inbox."""
+        self.connection.store(num, '+FLAGS', '\\Seen')
 
-            # Find all <a> tags with hrefs (i.e., links)
-            for a_tag in soup.find_all("a", href=True):
-                href = a_tag["href"]
-                raw_text = a_tag.get_text(strip=True) or a_tag.get("aria-label") or "Job"
+    def logout(self) -> None:
+        """Logout from the Gmail session."""
+        if self.connection:
+            self.connection.logout()
 
-                # Skip irrelevant links
-                if any(phrase in raw_text.lower() for phrase in ["your job alert", "see all jobs", "view all", "recommended jobs"]):
+class JobParser:
+    """Parses HTML content of emails to extract job links and metadata."""
+    def __init__(self, keywords: List[str]):
+        self.keywords: List[str] = [kw.lower().strip() for kw in keywords]
+        self.sent_job_ids: set = set()
+
+    def extract_html(self, msg: email.message.Message) -> str:
+        """Extract the HTML body from the email message."""
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_content_type() == "text/html":
+                    return part.get_payload(decode=True).decode(errors="ignore")
+        elif msg.get_content_type() == "text/html":
+            return msg.get_payload(decode=True).decode(errors="ignore")
+        return ""
+
+    def extract_job_id(self, url: str) -> Optional[str]:
+        """Extract the LinkedIn job ID from a URL."""
+        match = re.search(r'/jobs/view/(\d+)', url)
+        return match.group(1) if match else None
+
+    def parse_jobs(self, html: str) -> List[Dict[str, str]]:
+        """Scan HTML for LinkedIn job links matching the defined keywords."""
+        soup = BeautifulSoup(html, "html.parser")
+        jobs: List[Dict[str, str]] = []
+
+        for a_tag in soup.find_all("a", href=True):
+            href = a_tag["href"]
+            raw_text = a_tag.get_text(strip=True) or a_tag.get("aria-label") or "Job"
+
+            # Filter out non-job or irrelevant links
+            if any(p in raw_text.lower() for p in ["your job alert", "see all jobs", "view all", "recommended jobs"]):
+                continue
+            if "/jobs/search" in href or "/comm/jobs/search" in href:
+                continue
+
+            job_id = self.extract_job_id(href)
+            if not job_id or job_id in self.sent_job_ids:
+                continue
+
+            if "linkedin.com" in href and any(kw in raw_text.lower() for kw in self.keywords):
+                # Extract title, company, and location
+                bold_tag = a_tag.find("strong") or a_tag.find("b")
+                title = bold_tag.get_text(strip=True) if bold_tag else None
+                full_text = a_tag.get_text("·", strip=True)
+                parts = [p.strip() for p in full_text.split("·")]
+                title = title or parts[0] if len(parts) > 0 else "Unknown"
+                company = parts[1] if len(parts) > 1 else "Unknown"
+                location = parts[2] if len(parts) > 2 else "Unknown"
+
+                jobs.append({
+                    "id": job_id,
+                    "title": title,
+                    "company": company,
+                    "location": location,
+                    "url": href
+                })
+                self.sent_job_ids.add(job_id)
+        return jobs
+
+class JobAlertBot:
+    """Main controller class that orchestrates job checking and alerting."""
+    def __init__(self):
+        # Load configuration from environment
+        self.email_user: str = os.getenv("EMAIL_USER", "")
+        self.email_pass: str = os.getenv("EMAIL_PASS", "")
+        self.telegram_token: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        self.telegram_chat_id: str = os.getenv("TELEGRAM_CHAT_ID", "")
+        raw_keywords: str = os.getenv("KEYWORDS", "")
+        keywords: List[str] = [kw.strip() for kw in raw_keywords.split(",") if kw.strip()]
+
+        # Initialize core components
+        self.notifier: TelegramNotifier = TelegramNotifier(self.telegram_token, self.telegram_chat_id)
+        self.fetcher: EmailFetcher = EmailFetcher(self.email_user, self.email_pass)
+        self.parser: JobParser = JobParser(keywords)
+
+    def format_message(self, job: Dict[str, str]) -> str:
+        """Format job details into a Telegram Markdown message."""
+        return (
+            f"💼 *New Job Opportunity!*\n"
+            f"📝 *Title:* {job['title']}\n"
+            f"🏢 *Company:* {job['company']}\n"
+            f"📍 *Location:* {job['location']}\n"
+            f"🔗 [Apply here]({job['url']})"
+        )
+
+    def run(self) -> None:
+        """Main execution logic: fetch emails, extract jobs, send alerts."""
+        try:
+            self.fetcher.connect()
+            emails = self.fetcher.fetch_recent_emails()
+
+            for num, msg in emails:
+                html = self.parser.extract_html(msg)
+                if not html:
                     continue
-                if "/jobs/search" in href or "/comm/jobs/search" in href:
-                    continue
+                jobs = self.parser.parse_jobs(html)
+                if jobs:
+                    for job in jobs:
+                        message = self.format_message(job)
+                        self.notifier.send_message(message)
+                    self.fetcher.mark_as_read(num)
 
-                # Extract LinkedIn job ID and skip if already sent
-                job_id = extract_job_id(href)
-                if not job_id or job_id in sent_job_ids:
-                    continue
+        except Exception as e:
+            # Notify Telegram on any runtime error
+            self.notifier.send_message(f"❗ Error while checking email: {str(e)}")
 
-                # Check if job matches user-defined keywords
-                if "linkedin.com" in href and any(kw in raw_text.lower() for kw in KEYWORDS):
-                    # Try extracting title, company, and location from job link text
-                    bold_tag = a_tag.find("strong") or a_tag.find("b")
-                    title = bold_tag.get_text(strip=True) if bold_tag else None
+        finally:
+            # Always logout from email session
+            self.fetcher.logout()
 
-                    full_text = a_tag.get_text("·", strip=True)
-                    parts = [p.strip() for p in full_text.split("·")]
-
-                    title = title or parts[0] if len(parts) > 0 else "Unknown"
-                    company = parts[1] if len(parts) > 1 else "Unknown"
-                    location = parts[2] if len(parts) > 2 else "Unknown"
-
-                    # Format the message in Markdown
-                    message = (
-                        f"💼 *New Job Opportunity!*\n"
-                        f"📝 *Title:* {title}\n"
-                        f"🏢 *Company:* {company}\n"
-                        f"📍 *Location:* {location}\n"
-                        f"🔗 [Apply here]({href})"
-                    )
-
-                    # Send alert to Telegram and mark job ID as sent
-                    send_telegram_message(TELEGRAM_CHAT_ID, message)
-                    sent_job_ids.add(job_id)
-                    sent = True
-
-            # If at least one job was sent from this email, mark it as read
-            if sent:
-                mail.store(num, '+FLAGS', '\\Seen')
-
-        mail.logout()
-
-    except Exception as e:
-        # Send error message to Telegram if script fails
-        send_telegram_message(TELEGRAM_CHAT_ID, f"❗ Error while checking email: {str(e)}")
-
-# Run the script
 if __name__ == "__main__":
-    check_emails()
+    bot = JobAlertBot()
+    bot.run()
