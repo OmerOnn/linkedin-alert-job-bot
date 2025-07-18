@@ -1,55 +1,83 @@
-# 📬 LinkedIn Job Alert Bot
+# 📬 LinkedIn Job Alert Bot  
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/your-username/your-repo/run.yml?branch=main)](../../actions)  
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://www.python.org/)  
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)  
 
-
-A GitHub Action that monitors your Gmail inbox for **LinkedIn job alert emails**, scans for jobs that match your favorite keywords (like `"student"`, `"AI"`, `"software engineer"`), and sends job listings directly to your **Telegram** via your own bot — completely free and automatic.
-
----
-
-## 🚀 What It Does
-
-- Connects to Gmail via IMAP  
-- Checks new, unread LinkedIn job alert emails (within the past hour)  
-- Parses job titles, company names, and locations from the HTML content  
-- Matches job titles against your own keywords  
-- Sends alerts as Telegram messages  
+🚀 **Automatically get LinkedIn job alerts sent straight to your Telegram!**  
+This GitHub Action scans your Gmail for **LinkedIn job alerts**, filters jobs by your chosen **keywords**, and sends you real-time Telegram messages — fully automated & free.  
 
 ---
 
-## 🔐 Required GitHub Secrets
+## ✨ Features
 
-| Secret Name            | Description                                                                |
+✅ **Automatic Gmail scanning** (IMAP)  
+✅ **Filters jobs by keywords** (case-insensitive)  
+✅ **Sends alerts directly to Telegram**  
+✅ **Runs on GitHub Actions every 30 minutes**  
+✅ **No servers needed – works entirely in the cloud**  
+
+---
+
+## ⚡ Quick Start
+
+### **1️⃣ Fork This Repository**  
+Click the **Fork** button on the top-right of this page.  
+
+### **2️⃣ Add GitHub Secrets**  
+Go to:  
+`Settings → Secrets and variables → Actions → New repository secret`  
+
+Add the following:
+
+| Secret Name            | Example Value                                                              |
 |------------------------|----------------------------------------------------------------------------|
-| `EMAIL_USER`           | Your Gmail address                                                         |
-| `EMAIL_PASS`           | Gmail App Password (see instructions below)                                |
-| `TELEGRAM_BOT_TOKEN`   | Telegram bot token from [@BotFather](https://t.me/BotFather)               |
-| `TELEGRAM_CHAT_ID`     | Your user ID from [@userinfobot](https://t.me/userinfobot)                 |
-| `KEYWORDS`             | Comma-separated list of keywords (e.g. `student,ai,intern,developer`)      |
+| `EMAIL_USER`           | `youremail@gmail.com`                                                      |
+| `EMAIL_PASS`           | Your Gmail **App Password** (see below)                                    |
+| `TELEGRAM_BOT_TOKEN`   | Token from [@BotFather](https://t.me/BotFather)                             |
+| `TELEGRAM_CHAT_ID`     | Your Telegram user ID from [@userinfobot](https://t.me/userinfobot)         |
+| `KEYWORDS`             | `student,intern,ai,software engineer,developer`                            |
 
 ---
 
-## ✉️ How to Get a Gmail App Password
+## 🔐 How to Get the Required Secrets
 
-If you use 2-Step Verification:
-
+### ✅ **Gmail App Password** (for `EMAIL_PASS`)  
 1. Go to [Google App Passwords](https://myaccount.google.com/apppasswords)  
-2. Select **Mail** as the app and name it something like "GitHub"  
-3. Google will generate a 16-character app password  
-4. Use that for `EMAIL_PASS` in your GitHub secrets  
+2. Select **Mail** → **Other (Custom name)** → enter "GitHub"  
+3. Click **Generate** → copy the **16-character password**  
+4. Paste it into the `EMAIL_PASS` secret  
+
+*(If you don’t have 2FA, you can use your regular password — but it’s not recommended)*
+
+### ✅ **Telegram Bot Setup**  
+1. Open [@BotFather](https://t.me/BotFather) → `/newbot` → follow the steps  
+2. Copy the bot token → set it as `TELEGRAM_BOT_TOKEN`  
+3. Open [@userinfobot](https://t.me/userinfobot) → `/start` → copy your Telegram ID → set it as `TELEGRAM_CHAT_ID`  
 
 ---
 
-## 🤖 Setting Up Your Telegram Bot
+## 🔍 Customizing Keywords  
 
-1. Open [@BotFather](https://t.me/BotFather) in Telegram  
-2. Send `/newbot` and follow the steps to create one  
-3. Copy the token → this is your `TELEGRAM_BOT_TOKEN`  
-4. Open [@userinfobot](https://t.me/userinfobot) and send `/start`  
-5. It will return your Telegram ID → use it for `TELEGRAM_CHAT_ID`  
+Edit the `KEYWORDS` secret → add your own keywords (comma-separated).  
+Matching is **case-insensitive**.
+
+**Example:**  
+student,intern,ai,software engineer,data scientist,backend developer
 
 ---
 
-## 📲 Example Telegram Message
+## ⏰ Workflow Schedule  
 
+By default, it runs **every 30 minutes**.  
+Change the schedule in `.github/workflows/run.yml`:  
+
+yaml
+schedule:
+  - cron: '*/30 * * * *'  # every 30 minutes
+
+---
+
+# 📲 Example Telegram Alert
 💼 New Job Opportunity!
 📝 Title: AI Research Intern
 🏢 Company: NVIDIA
@@ -58,42 +86,36 @@ If you use 2-Step Verification:
 
 ---
 
-## 🔍 Customize Your Keyword List
+# 🖥️ Run Locally (Optional)
+If you want to test it manually:
+# 1. Clone the repo
+git clone https://github.com/YOUR-USERNAME/YOUR-REPO.git
+cd YOUR-REPO
 
-Your job-matching keywords come from the `KEYWORDS` GitHub secret.
+# 2. Install dependencies
+pip install -r requirements.txt
 
-**Example value:**
-student,intern,ai,software engineer,data scientist,backend developer
+# 3. Create a .env file with your secrets
+EMAIL_USER=youremail@gmail.com
+EMAIL_PASS=your_app_password
+TELEGRAM_BOT_TOKEN=your_telegram_token
+TELEGRAM_CHAT_ID=your_telegram_id
+KEYWORDS=student,intern,ai,developer
 
-
-Matching is **case-insensitive** and checks if any keyword appears in the job title.
-
----
-
-## ⏰ Workflow Schedule
-
-This bot runs every **30 minutes** by default using GitHub Actions.
-
-To change that, edit `.github/workflows/run.yml`:
-
-```yaml
-schedule:
-  - cron: '*/30 * * * *'
-You can adjust the frequency with crontab.guru.
-```
+# 4. Run the script
+python main.py
 
 ---
 
-##📦 File Structure
-
+# 📦 File Structure
 📁 .github/workflows/
-   └── run.yml           → GitHub Actions workflow
-
-📄 main.py               → Email parser and job detector  
-📄 requirements.txt      → Python dependencies  
-📄 README.md             → This file  
+   └── run.yml           # GitHub Actions workflow
+📄 main.py               # Main script (email parser + Telegram sender)
+📄 requirements.txt      # Python dependencies
+📄 README.md             # This file
 
 ---
 
-##❤️ Built with love by Omer
-Feel free to fork, improve, and share this bot with other students or job hunters looking to automate their search!
+# ❤️ Credits
+Built with ❤️ by Omer
+Fork it, improve it, and share it with other students or job hunters!
