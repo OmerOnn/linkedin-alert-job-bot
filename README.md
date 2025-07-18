@@ -1,5 +1,5 @@
 # 📬 LinkedIn Job Alert Bot  
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/your-username/your-repo/run.yml?branch=main)](../../actions)  
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/OmerOnn/linkedin-alert-job-bot/run.yml?branch=main)](https://github.com/OmerOnn/linkedin-alert-job-bot/actions)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python)](https://www.python.org/)  
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)  
 
