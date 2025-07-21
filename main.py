@@ -185,5 +185,16 @@ class JobAlertBot:
             self.fetcher.logout()
 
 if __name__ == "__main__":
+
+    # DEBUG: Send a startup message to Telegram
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    if token and chat_id:
+        try:
+            debug_notifier = TelegramNotifier(token, chat_id)
+            debug_notifier.send_message("✅ Job Alert Bot started successfully (debug test)")
+        except Exception as e:
+            print("Failed to send debug message:", e)
+            
     bot = JobAlertBot()
     bot.run()
